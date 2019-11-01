@@ -1,0 +1,5 @@
+TARGETNAME=system_root
+TARGETPATH=.
+TARGETTYPE=DRIVER
+
+SOURCES=port_process.c
